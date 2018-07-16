@@ -17,20 +17,23 @@
 template <typename Key, typename Val, typename Comp>
 struct HeapItem;
 
+class None {};
+
+template <typename T, typename U>
 class PairHash {
  public:
-  size_t operator()(const std::pair<long long, int> &p) const { return std::hash<long long>()(p.first) ^ std::hash<int>()(p.second); };
+  size_t operator()(const std::pair<T, U> &p) const { return std::hash<T>()(p.first) ^ std::hash<U>()(p.second); };
 };
-template <typename K, typename V = int, typename compare = std::less<K>>
+template <typename K, typename V = None, typename Compare = std::less<K>>
 class HollowHeap {
  public:
   struct Node {
     K key;
-    HeapItem<K, V, compare> *item;
+    HeapItem<K, V, Compare> *item;
     int rank;
     Node *child, *next, *second_parent;
     HollowHeap *hh;
-    Node(int k, HeapItem<K, V, compare> *item_) : key(k),
+    Node(int k, HeapItem<K, V, Compare> *item_) : key(k),
                                                   item(item_),
                                                   rank(0),
                                                   child(nullptr),
@@ -42,10 +45,10 @@ class HollowHeap {
   struct DisjointSet {  //Union-Find
     int size;
     DisjointSet *par;
-    HeapItem<K, V, compare> *item;    //pointer to Heapitem
-    HollowHeap<K, V, compare> *heap;  //pointer to Heap
+    HeapItem<K, V, Compare> *item;    //pointer to Heapitem
+    HollowHeap<K, V, Compare> *heap;  //pointer to Heap
     DisjointSet() : size(1), par(nullptr), item(nullptr), heap(nullptr){};
-    DisjointSet(HeapItem<K, V, compare> *it) : size(1), par(nullptr), item(it), heap(nullptr){};
+    DisjointSet(HeapItem<K, V, Compare> *it) : size(1), par(nullptr), item(it), heap(nullptr){};
     DisjointSet *UFroot() {
       return par == nullptr ? this : par = par->UFroot();
     }
@@ -62,16 +65,16 @@ class HollowHeap {
   HollowHeap() : count_item(0), count_node(0), root(nullptr), rankmap(3){};
   bool empty() { return root == nullptr; }
   int size() { return count_item; }
-  HeapItem<K, V, compare> *push(K k) { return emplace(k, V()); }
-  HeapItem<K, V, compare> *push(std::pair<K, HeapItem<K, V, compare> &> p) { emplace(p.first, p.second); }
-  HeapItem<K, V, compare> *push(std::pair<K, V> &p) { emplace(p.first, p.second); }
-  HeapItem<K, V, compare> *emplace(K k) { return emplace(k, V()); }
-  HeapItem<K, V, compare> *emplace(K k, V v) {
-    auto pr = new HeapItem<K, V, compare>(v);
+  HeapItem<K, V, Compare> *push(K k) { return emplace(k, V()); }
+  HeapItem<K, V, Compare> *push(std::pair<K, HeapItem<K, V, Compare> &> p) { emplace(p.first, p.second); }
+  HeapItem<K, V, Compare> *push(std::pair<K, V> &p) { emplace(p.first, p.second); }
+  HeapItem<K, V, Compare> *emplace(K k) { return emplace(k, V()); }
+  HeapItem<K, V, Compare> *emplace(K k, V v) {
+    auto pr = new HeapItem<K, V, Compare>(v);
     return emplace(k, *pr);
     //return pr;
   }
-  HeapItem<K, V, compare> *emplace(K k, HeapItem<K, V, compare> &e) {
+  HeapItem<K, V, Compare> *emplace(K k, HeapItem<K, V, Compare> &e) {
     ++count_item;
     ++count_node;
     e.node = new Node(k, &e);
@@ -84,7 +87,7 @@ class HollowHeap {
     w->child = v;
   }
   Node *link(Node *v, Node *w) {
-    if (compare()(v->key, w->key)) {
+    if (Compare()(v->key, w->key)) {
       add_child(w, v);
       return v;
     } else {
@@ -118,7 +121,7 @@ class HollowHeap {
     //assert(count_item>0);
     return root->key;
   }
-  std::pair<K, HeapItem<K, V, compare> *> top_item() {
+  std::pair<K, HeapItem<K, V, Compare> *> top_item() {
     return make_pair(root->key, root->item);
   }
   Node *pop() {
@@ -180,7 +183,7 @@ class HollowHeap {
     return root;
   }
   //static Node* decrease_key(){}//
-  Node *decrease_key(HeapItem<K, V, compare> &i, K k) {
+  Node *decrease_key(HeapItem<K, V, Compare> &i, K k) {
     return decrease_key(i.node, k);
   }
   Node *decrease_key(Node *u, K k) {
@@ -200,17 +203,17 @@ class HollowHeap {
     std::swap(count_item, a.count_item);
     std::swap(count_node, a.count_node);
     std::swap(root, a.root);
+    std::swap(rankmap, a.rankmap);
   }
   //rebuild
-  //static multimap<V*,Node*> table;
-  static std::unordered_multimap<std::pair<K, V>, HeapItem<K, V, compare> *, PairHash> table;  //hash function needed
+  static std::unordered_multimap<std::pair<K, V>, HeapItem<K, V, Compare> *, PairHash<K, V>> table;  //hash function needed
  private:
   int count_item, count_node;
   Node *root;
   std::vector<Node *> rankmap;
 };
-template <typename K, typename V, typename compare>
-std::unordered_multimap<std::pair<K, V>, HeapItem<K, V, compare> *, PairHash> HollowHeap<K, V, compare>::table;
+template <typename K, typename V, typename Compare>
+std::unordered_multimap<std::pair<K, V>, HeapItem<K, V, Compare> *, PairHash<K, V>> HollowHeap<K, V, Compare>::table;
 
 template <typename Key, typename Val, typename Comp>
 struct HeapItem {
@@ -224,10 +227,10 @@ struct HeapItem {
   }
 };
 
-void heap_sort(int n) {
+void heapSort(int n) {
   std::random_device rnd;
   std::mt19937 mt(rnd());
-  HollowHeap<int, void *> hh, hh3;
+  HollowHeap<int> hh;
   std::vector<int> a(n), b(n);
 
   for (int i = 0; i < (int)a.size(); ++i) {
@@ -235,7 +238,7 @@ void heap_sort(int n) {
   }
   std::shuffle(a.begin(), a.end(), mt);
   for (int i = 0; i < (int)a.size(); ++i) {
-    hh.emplace(a[i], nullptr);
+    hh.emplace(a[i]);
   }
   for (int i = 0; i < (int)a.size(); ++i) {
     b[i] = hh.top();
@@ -246,6 +249,6 @@ void heap_sort(int n) {
 int main() {
   long long n = 0;
   std::cin >> n;
-  heap_sort(n);
+  heapSort(n);
   return 0;
 }
