@@ -227,7 +227,7 @@ struct HeapItem {
 void heap_sort(int n) {
   std::random_device rnd;
   std::mt19937 mt(rnd());
-  HollowHeap<int, int> hh, hh3;
+  HollowHeap<int, void *> hh, hh3;
   std::vector<int> a(n), b(n);
 
   for (int i = 0; i < (int)a.size(); ++i) {
@@ -235,7 +235,7 @@ void heap_sort(int n) {
   }
   std::shuffle(a.begin(), a.end(), mt);
   for (int i = 0; i < (int)a.size(); ++i) {
-    hh.emplace(a[i], i);
+    hh.emplace(a[i], nullptr);
   }
   for (int i = 0; i < (int)a.size(); ++i) {
     b[i] = hh.top();
