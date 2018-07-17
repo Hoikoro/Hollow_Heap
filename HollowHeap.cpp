@@ -30,11 +30,10 @@ class HollowHeap {
   struct Node {
     K key;
     V value;
-    HeapItem<K, V, Compare> *item;
-    int rank;
+    int rank;  //negative rank means hollow node
     Node *child, *next, *second_parent;
     Node(K k, V v) : key(k),
-                     item(item_),
+                     value(v),
                      rank(0),
                      child(nullptr),
                      next(nullptr),
@@ -62,24 +61,17 @@ class HollowHeap {
   };
 
   HollowHeap() : count_item(0), count_node(0), root(nullptr), rankmap(3){};
-  bool empty() { return root == nullptr; }
-  int size() { return count_item; }
-  HeapItem<K, V, Compare> *push(K k) { return emplace(k, V()); }
-  HeapItem<K, V, Compare> *push(std::pair<K, HeapItem<K, V, Compare> &> p) { emplace(p.first, p.second); }
-  HeapItem<K, V, Compare> *push(std::pair<K, V> &p) { emplace(p.first, p.second); }
-  HeapItem<K, V, Compare> *emplace(K k) { return emplace(k, V()); }
-  HeapItem<K, V, Compare> *emplace(K k, V v) {
-    auto pr = new HeapItem<K, V, Compare>(v);
-    return emplace(k, *pr);
-    //return pr;
-  }
-  HeapItem<K, V, Compare> *emplace(K k, HeapItem<K, V, Compare> &e) {
+  bool empty() const noexcept { return root == nullptr; }
+  int size() const noexcept { return count_item; }
+  Node *push(K k) { return emplace(k, V()); }
+  Node *push(std::pair<K, V> &p) { emplace(p.first, p.second); }
+  Node *emplace(K k) { return emplace(k, V()); }
+  Node *emplace(K k, V v) {
     ++count_item;
     ++count_node;
-    e.node = new Node(k, &e);
-    e.uf = new DisjointSet(&e);
-    root = meld_(e.node);
-    return &e;
+    auto pointer = new Node(k, v);
+    root = meld_(pointer);
+    return pointer;
   }
   void add_child(Node *v, Node *w) {  //make v child of w
     v->next = w->child;
@@ -96,15 +88,15 @@ class HollowHeap {
   }
   Node *meld_(Node *u) {
     if (u == nullptr) {
-      root->item->uf->UFroot()->heap = this;
+      //root->item->uf->UFroot()->heap = this;
       return root;
     }
     if (root == nullptr) {
-      u->item->uf->UFroot()->heap = this;
+      //u->item->uf->UFroot()->heap = this;
       return u;
     }
-    root->item->uf->unite(u->item->uf);
-    root->item->uf->UFroot()->heap = this;
+    //root->item->uf->unite(u->item->uf);
+    //root->item->uf->UFroot()->heap = this;
     return link(root, u);
   }
   Node *meld(HollowHeap &g) {
@@ -115,13 +107,13 @@ class HollowHeap {
     g.root = nullptr;
     return root;
   }
-  K top() {
+  K top_key() {
     //do not use when the heap is empty
     //assert(count_item>0);
     return root->key;
   }
-  std::pair<K, HeapItem<K, V, Compare> *> top_item() {
-    return make_pair(root->key, root->item);
+  std::pair<K, V> top() {
+    return make_pair(root->key, root->value);
   }
   Node *pop() {
     return delete_node(root);
@@ -130,9 +122,8 @@ class HollowHeap {
   Node *delete_node(Node *u) {
     count_item--;
     count_node--;
-    u->item->node = nullptr;
-    u->item = nullptr;
-    if (root->item != nullptr) return root;  //if u!=root, deletion is completed
+    u->rank = -1;
+    if (root->rank >= 0) return root;  //if u!=root, deletion is completed
     int max_rank = 0;
     while (root != nullptr) {
       auto w = root->child;
@@ -142,7 +133,7 @@ class HollowHeap {
         //counter ++;
         auto u = w;
         w = w->next;
-        if (u->item == nullptr) {             //if the child of root (u) is hollow node
+        if (u->rank < 0) {                    //if the child of root (u) is hollow node
           if (u->second_parent == nullptr) {  //u became hollow by delete op
             //insert u to list of hollow nodes
             u->next = root;
@@ -182,17 +173,17 @@ class HollowHeap {
     return root;
   }
   //static Node* decrease_key(){}//
-  Node *decrease_key(HeapItem<K, V, Compare> &i, K k) {
+  /*Node *decrease_key(HeapItem<K, V, Compare> &i, K k) {
     return decrease_key(i.node, k);
-  }
+  }*/
   Node *decrease_key(Node *u, K k) {
     if (u == root) {
       u->key = k;
       return u;
     }
-    Node *v = new Node(k, std::move(u->item));
+    Node *v = new Node(k, std::move(u->value));
     count_node++;
-    u->item = nullptr;
+    u->rank = -1;
     v->rank = std::max(0, u->rank - 2);
     v->child = u;
     u->second_parent = v;
@@ -205,16 +196,16 @@ class HollowHeap {
     std::swap(rankmap, a.rankmap);
   }
   //rebuild
-  static std::unordered_multimap<std::pair<K, V>, HeapItem<K, V, Compare> *, PairHash<K, V>> table;  //hash function needed
+  //static std::unordered_multimap<std::pair<K, V>, HeapItem<K, V, Compare> *, PairHash<K, V>> table;  //hash function needed
  private:
   int count_item, count_node;
   Node *root;
   std::vector<Node *> rankmap;
 };
-template <typename K, typename V, typename Compare>
-std::unordered_multimap<std::pair<K, V>, HeapItem<K, V, Compare> *, PairHash<K, V>> HollowHeap<K, V, Compare>::table;
+//template <typename K, typename V, typename Compare>
+//std::unordered_multimap<std::pair<K, V>, HeapItem<K, V, Compare> *, PairHash<K, V>> HollowHeap<K, V, Compare>::table;
 
-template <typename Key, typename Val, typename Comp>
+/*template <typename Key, typename Val, typename Comp>
 struct HeapItem {
   Val val;
   typename HollowHeap<Key, Val, Comp>::Node *node;
@@ -224,7 +215,7 @@ struct HeapItem {
   HollowHeap<Key, Val, Comp> *which_heap() {
     return uf->UFroot()->heap;
   }
-};
+};*/
 
 void heapSort(int n) {
   std::random_device rnd;
@@ -237,10 +228,11 @@ void heapSort(int n) {
   }
   std::shuffle(a.begin(), a.end(), mt);
   for (int i = 0; i < (int)a.size(); ++i) {
-    hh.emplace(a[i]);
+    auto tmp = hh.emplace(a[i]);
+    if (i % 10000 == 0) hh.decrease_key(tmp, a[i] / 2);
   }
   for (int i = 0; i < (int)a.size(); ++i) {
-    b[i] = hh.top();
+    b[i] = hh.top_key();
     hh.pop();
   }
   assert(std::is_sorted(b.begin(), b.end()));
