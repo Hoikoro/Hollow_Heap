@@ -20,12 +20,12 @@ struct HeapItem;
 template <typename K, typename Compare = std::less<K>>
 class HollowHeap {
   using Index = int_fast32_t;
+  using Counter = int_fast32_t;
+  using Rank = int_fast32_t;
 
- public:
   struct Node {
     K key;
-    Index rank;  //negative rank means hollow node
-    Node *c_hild, *n_ext, *s_econd_parent;
+    Rank rank;  //negative rank means hollow node
     Index child, next, secondParent;
     Node(K k) : key(k),
                 rank(0),
@@ -34,10 +34,18 @@ class HollowHeap {
                 secondParent(-1){};
   };
 
-  HollowHeap() : count_item(0), count_node(0), root(-1), rankmap(3, -1){};
+ private:
+  Counter count_item, count_node;
+  Index root;
+  std::vector<Index> rankmap;
+  static std::vector<Node> nodes;
+  Compare comp;
+
+ public:
+  HollowHeap() : count_item(0), count_node(0), root(-1), rankmap(3, -1), comp(){};
 
   bool empty() const noexcept { return root == -1; }
-  int size() const noexcept { return count_item; }
+  Counter size() const noexcept { return count_item; }
 
   Index push(K k) { return emplace(k); }
   Index emplace(K k) {
@@ -56,7 +64,7 @@ class HollowHeap {
   }
 
   Index link(Index v, Index w) {
-    if (Compare()(nodes[v].key, nodes[w].key)) {
+    if (comp(nodes[v].key, nodes[w].key)) {
       addChild(w, v);
       return v;
     } else {
@@ -65,6 +73,7 @@ class HollowHeap {
     }
   }
 
+ private:
   Index meld_(Index u) {
     if (u == -1) {
       return root;
@@ -75,6 +84,7 @@ class HollowHeap {
     return link(root, u);
   }
 
+ public:
   Index meld(HollowHeap &g) {
     count_item += g.count_item;
     count_node += g.count_node;
@@ -84,7 +94,7 @@ class HollowHeap {
     return root;
   }
 
-  const K &top() {
+  const K &top() const noexcept {
     //do not use when the heap is empty
     //assert(count_item>0);
     return nodes[root].key;
@@ -92,13 +102,12 @@ class HollowHeap {
 
   Index pop() { return deleteNode(root); }
 
-  //static Node* deleteNode(){}
   Index deleteNode(Index del) {
     count_item--;
     count_node--;
     nodes[del].rank = -1;
     if (nodes[root].rank >= 0) return root;  //if del!=r_oot, deletion is completed
-    int maxRank = 0;
+    Rank maxRank = 0;
     while (root != -1) {
       Index w = nodes[root].child;
       Index x = root;
@@ -108,11 +117,11 @@ class HollowHeap {
         Index u = w;
         w = nodes[w].next;
         if (nodes[u].rank < 0) {              //if the child of root (u) is hollow node
-          if (nodes[u].secondParent == -1) {  //u became hollow by delete op
+          if (nodes[u].secondParent == -1) {  //u became hollow by delete()
             //insert u to list of hollow nodes
             nodes[u].next = root;
             root = u;
-          } else {  //u became hollow by decrease-key operation
+          } else {  //u became hollow by decreaseKey()
             if (nodes[u].secondParent == x)
               w = -1;  //unnecessary?
             else
@@ -149,7 +158,9 @@ class HollowHeap {
     }
     return root;
   }
+
   Index decreaseKey(Index u, K k) {
+    //assert(nodes[u].key>k)
     if (u == root) {
       nodes[u].key = k;
       return u;
@@ -163,18 +174,13 @@ class HollowHeap {
     nodes[u].secondParent = v;
     return root = link(v, root);
   }
-  void swap_heap(HollowHeap &a) {
+  void swapHeap(HollowHeap &a) {
     std::swap(count_item, a.count_item);
     std::swap(count_node, a.count_node);
     std::swap(root, a.root);
     std::swap(rankmap, a.rankmap);
   }
   //rebuild
- private:
-  Counter count_item, count_node;
-  Index root;
-  std::vector<Index> rankmap;
-  static std::vector<Node> nodes;
 };
 template <typename K, typename Compare>
 std::vector<typename HollowHeap<K, Compare>::Node> HollowHeap<K, Compare>::nodes;
