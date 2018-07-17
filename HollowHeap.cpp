@@ -29,17 +29,16 @@ class HollowHeap {
  public:
   struct Node {
     K key;
+    V value;
     HeapItem<K, V, Compare> *item;
     int rank;
     Node *child, *next, *second_parent;
-    HollowHeap *hh;
-    Node(int k, HeapItem<K, V, Compare> *item_) : key(k),
-                                                  item(item_),
-                                                  rank(0),
-                                                  child(nullptr),
-                                                  next(nullptr),
-                                                  second_parent(nullptr),
-                                                  hh(nullptr){};
+    Node(K k, V v) : key(k),
+                     item(item_),
+                     rank(0),
+                     child(nullptr),
+                     next(nullptr),
+                     second_parent(nullptr){};
   };
 
   struct DisjointSet {  //Union-Find
