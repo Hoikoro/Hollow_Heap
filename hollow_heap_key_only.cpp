@@ -12,10 +12,6 @@
 #else
 #define DBG(...) ;
 #endif
-int counter;
-
-template <typename Key, typename Val, typename Comp>
-struct HeapItem;
 
 template <typename K, typename Compare = std::less<K>>
 class HollowHeap {
@@ -113,7 +109,6 @@ class HollowHeap {
       Index x = root;
       root = nodes[root].next;  //root lists all hollow roots
       while (w != -1) {
-        ++counter;
         Index u = w;
         w = nodes[w].next;
         if (nodes[u].rank < 0) {              //if the child of root (u) is hollow node
