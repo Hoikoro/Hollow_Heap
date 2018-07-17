@@ -24,7 +24,7 @@ class HollowHeap {
   struct Node {
     K key;
     V value;
-    Index rank;  //negative rank means hollow node
+    Index rank;  //if rank is negative, this node is hollow node
     Index child, next, secondParent;
     Node(K k, V v) : key(k),
                      value(v),
@@ -33,15 +33,37 @@ class HollowHeap {
                      next(-1),
                      secondParent(-1){};
   };
+  struct UnionFind {
+    std::vector<int> par;
+    UnionFind(int n) : par(n, -1){};
+    int root(int x) { return par[x] < 0 ? x : (par[x] = root(par[x])); }
+    void unite(int x, int y) {
+      x = root(x);
+      y = root(y);
+      if (x != y) {
+        if (par[x] < par[y]) std::swap(x, y);
+        par[y] += par[x];
+        par[x] = y;
+      }
+    }
+    void append() {
+      par.push_back(-1);
+    }
+    bool isRoot(int x) { return root(x) == x; }
+    bool same(int x, int y) { return root(x) == root(y); }
+    int size(int x) { return -par[root(x)]; }
+  };
 
  private:
   Counter countItem, countNode;
   Index root;
   std::vector<Index> rankArr;
   static std::vector<Node> nodes;
+  static UnionFind uf;
+  static std::vector<HollowHeap> heaps;
 
  public:
-  HollowHeap() : countItem(0), countNode(0), root(-1), rankArr(3, -1){};
+  HollowHeap() : countItem(0), countNode(0), root(-1), rankArr(3, -1) { uf.append(); };
   bool empty() const noexcept { return root == -1; }
   int size() const noexcept { return countItem; }
   Index push(K k) { return emplace(k, V()); }
@@ -64,20 +86,23 @@ class HollowHeap {
     return make_pair(nodes[root].key, nodes[root].value);
   }
   Index pop() {
-    return delete_node(root);
+    return deleteNode(root);
   }
 
   Index meld(HollowHeap &g) {
+    root = meld_(g.root);
+    g.root = -1;
+    if (g.size() > size()) swap(g);
+    uf.unite(g - heaps[0], this - heaps[0]);
     countItem += g.countItem;
     countNode += g.countNode;
     g.countItem = g.countNode = 0;
-    root = meld_(g.root);
     g.root = -1;
+    g.rankArr = std::vector<Index>(3, -1);
     return root;
   }
 
-  //static Node* delete_node(){}
-  Index delete_node(Index del) {
+  Index deleteNode(Index del) {
     countItem--;
     countNode--;
     nodes[del].rank = -1;
@@ -132,11 +157,8 @@ class HollowHeap {
     }
     return root;
   }
-  //static Node* decrease_key(){}//
-  /*Node *decrease_key(HeapItem<K, V, Compare> &i, K k) {
-    return decrease_key(i.node, k);
-  }*/
-  Index decrease_key(Index u, K k) {
+
+  Index decreaseKey(Index u, K k) {
     if (u == root) {
       nodes[u].key = k;
       return u;
@@ -150,49 +172,56 @@ class HollowHeap {
     nodes[u].secondParent = v;
     return root = link(v, root);
   }
-  void swap(HollowHeap &a) {
-    std::swap(countItem, a.countItem);
-    std::swap(countNode, a.countNode);
-    std::swap(root, a.root);
-    std::swap(rankArr, a.rankArr);
-  }
 
  private:
-  void add_child(Index v, Index w) {  //make v child of w
+  void addChild(Index v, Index w) {  //make v child of w
     nodes[v].next = nodes[w].child;
     nodes[w].child = v;
   }
   Index link(Index v, Index w) {
     if (Compare()(nodes[v].key, nodes[w].key)) {
-      add_child(w, v);
+      addChild(w, v);
       return v;
     } else {
-      add_child(v, w);
+      addChild(v, w);
       return w;
     }
   }
   Index meld_(Index u) {
     if (u == -1) {
-      //r_oot->item->uf->UFroot()->heap = this;
       return root;
     }
     if (root == -1) {
-      //u->item->uf->UFroot()->heap = this;
       return u;
     }
-    //r_oot->item->uf->unite(u->item->uf);
-    //r_oot->item->uf->UFroot()->heap = this;
     return link(root, u);
   }
+
+ public:
+  //static member functions
+  static HollowHeap &idx(int h) { return heaps[uf.root(h)]; }
+  static int newHeap() {
+    heaps.emplace_back();
+    return (int)heaps.size() - 1;
+  }
+  static Index deleteNode(int heapIdx, Index del) { return idx(heapIdx).deleteNode(del); }
+  static Index decraseKey(int heapIdx, Index u, K k) { return idx(heapIdx).decreaseKey(u, k); }
+  static int countHeap() { return (int)uf.par.size(); }
   //rebuild
 };
 template <typename K, typename V, typename Compare>
 std::vector<typename HollowHeap<K, V, Compare>::Node> HollowHeap<K, V, Compare>::nodes;
+template <typename K, typename V, typename Compare>
+typename HollowHeap<K, V, Compare>::UnionFind HollowHeap<K, V, Compare>::uf(0);
+template <typename K, typename V, typename Compare>
+typename std::vector<HollowHeap<K, V, Compare>> HollowHeap<K, V, Compare>::heaps(0);
 
 void heapSort(int n) {
   std::random_device rnd;
   std::mt19937 mt(rnd());
-  HollowHeap<int> hh;
+  using HHi = HollowHeap<int>;
+  int heapId = HHi::newHeap();
+  //HHi hh ;
   std::priority_queue<int, std::vector<int>, std::greater<int>> pq;
   std::vector<int> a(n), b(n);
 
@@ -202,12 +231,12 @@ void heapSort(int n) {
   std::chrono::system_clock::time_point start = std::chrono::system_clock::now();
   std::shuffle(a.begin(), a.end(), mt);
   for (int i = 0; i < (int)a.size(); ++i) {
-    auto tmp = hh.emplace(a[i]);
-    if (i % 10000 == 0) hh.decrease_key(tmp, a[i] / 2);
+    auto tmp = HHi::idx(heapId).emplace(a[i]);
+    if (i % 10000 == 0) HHi::idx(heapId).decreaseKey(tmp, a[i] / 2);
   }
   for (int i = 0; i < (int)a.size(); ++i) {
-    b[i] = hh.top_key();
-    hh.pop();
+    b[i] = HHi::idx(heapId).top_key();
+    HHi::idx(heapId).pop();
   }
   assert(std::is_sorted(b.begin(), b.end()));
   std::chrono::system_clock::time_point p1 = std::chrono::system_clock::now();
