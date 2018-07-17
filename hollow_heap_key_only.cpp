@@ -17,96 +17,64 @@ int counter;
 template <typename Key, typename Val, typename Comp>
 struct HeapItem;
 
-class None {};
-
-template <typename T, typename U>
-class PairHash {
- public:
-  size_t operator()(const std::pair<T, U> &p) const { return std::hash<T>()(p.first) ^ std::hash<U>()(p.second); };
-};
-template <typename K, typename V = None, typename Compare = std::less<K>>
+template <typename K, typename Compare = std::less<K>>
 class HollowHeap {
   using Index = int_fast32_t;
-  using Counter = int_fast32_t;
 
  public:
   struct Node {
     K key;
-    V value;
     Index rank;  //negative rank means hollow node
     Node *c_hild, *n_ext, *s_econd_parent;
     Index child, next, secondParent;
-    Node(K k, V v) : key(k),
-                     value(v),
-                     rank(0),
-                     c_hild(nullptr),
-                     n_ext(nullptr),
-                     s_econd_parent(nullptr),
-                     child(-1),
-                     next(-1),
-                     secondParent(-1){};
+    Node(K k) : key(k),
+                rank(0),
+                child(-1),
+                next(-1),
+                secondParent(-1){};
   };
 
-  struct DisjointSet {  //Union-Find
-    int size;
-    DisjointSet *par;
-    HeapItem<K, V, Compare> *item;    //pointer to Heapitem
-    HollowHeap<K, V, Compare> *heap;  //pointer to Heap
-    DisjointSet() : size(1), par(nullptr), item(nullptr), heap(nullptr){};
-    DisjointSet(HeapItem<K, V, Compare> *it) : size(1), par(nullptr), item(it), heap(nullptr){};
-    DisjointSet *UFroot() {
-      return par == nullptr ? this : par = par->UFroot();
-    }
-    void unite(DisjointSet *ds) {
-      DisjointSet *root_this = UFroot();
-      DisjointSet *root_ds = ds->UFroot();
-      if (root_this == root_ds) return;
-      if (root_this->size < root_ds->size) std::swap(root_this, root_ds);
-      root_ds->par = root_this;
-      root_this->size += root_ds->size;
-    }
-  };
+  HollowHeap() : count_item(0), count_node(0), root(-1), rankmap(3, -1){};
 
-  HollowHeap() : count_item(0), count_node(0), r_oot(nullptr), root(-1), r_ankmap(3), rankmap(3, -1){};
   bool empty() const noexcept { return root == -1; }
   int size() const noexcept { return count_item; }
-  Index push(K k) { return emplace(k, V()); }
-  Index push(std::pair<K, V> &p) { emplace(p.first, p.second); }
-  Index emplace(K k) { return emplace(k, V()); }
-  Index emplace(K k, V v) {
+
+  Index push(K k) { return emplace(k); }
+  Index emplace(K k) {
     ++count_item;
     ++count_node;
-    nodes.emplace_back(k, v);
+    nodes.emplace_back(k);
     Index now = (Index)nodes.size() - 1;
     root = meld_(now);
     return now;
   }
-  void add_child(Index v, Index w) {  //make v child of w
+
+  //make v child of w
+  void addChild(Index v, Index w) {
     nodes[v].next = nodes[w].child;
     nodes[w].child = v;
   }
+
   Index link(Index v, Index w) {
     if (Compare()(nodes[v].key, nodes[w].key)) {
-      add_child(w, v);
+      addChild(w, v);
       return v;
     } else {
-      add_child(v, w);
+      addChild(v, w);
       return w;
     }
   }
+
   Index meld_(Index u) {
     if (u == -1) {
-      //r_oot->item->uf->UFroot()->heap = this;
       return root;
     }
     if (root == -1) {
-      //u->item->uf->UFroot()->heap = this;
       return u;
     }
-    //r_oot->item->uf->unite(u->item->uf);
-    //r_oot->item->uf->UFroot()->heap = this;
     return link(root, u);
   }
+
   Index meld(HollowHeap &g) {
     count_item += g.count_item;
     count_node += g.count_node;
@@ -115,19 +83,17 @@ class HollowHeap {
     g.root = -1;
     return root;
   }
-  const K &top_key() {
+
+  const K &top() {
     //do not use when the heap is empty
     //assert(count_item>0);
     return nodes[root].key;
   }
-  const std::pair<K, V> &top() {
-    return make_pair(nodes[root].key, nodes[root].value);
-  }
-  Index pop() {
-    return delete_node(root);
-  }
-  //static Node* delete_node(){}
-  Index delete_node(Index del) {
+
+  Index pop() { return deleteNode(root); }
+
+  //static Node* deleteNode(){}
+  Index deleteNode(Index del) {
     count_item--;
     count_node--;
     nodes[del].rank = -1;
@@ -183,16 +149,12 @@ class HollowHeap {
     }
     return root;
   }
-  //static Node* decrease_key(){}//
-  /*Node *decrease_key(HeapItem<K, V, Compare> &i, K k) {
-    return decrease_key(i.node, k);
-  }*/
-  Index decrease_key(Index u, K k) {
+  Index decreaseKey(Index u, K k) {
     if (u == root) {
       nodes[u].key = k;
       return u;
     }
-    nodes.emplace_back(k, std::move(nodes[u].value));
+    nodes.emplace_back(k);
     Index v = (Index)nodes.size() - 1;
     count_node++;
     nodes[u].rank = -1;
@@ -208,31 +170,14 @@ class HollowHeap {
     std::swap(rankmap, a.rankmap);
   }
   //rebuild
-  //static std::unordered_multimap<std::pair<K, V>, HeapItem<K, V, Compare> *, PairHash<K, V>> table;  //hash function needed
  private:
   Counter count_item, count_node;
-  Node *r_oot;
   Index root;
-  std::vector<Node *> r_ankmap;
   std::vector<Index> rankmap;
   static std::vector<Node> nodes;
 };
-template <typename K, typename V, typename Compare>
-std::vector<typename HollowHeap<K, V, Compare>::Node> HollowHeap<K, V, Compare>::nodes;
-//template <typename K, typename V, typename Compare>
-//std::unordered_multimap<std::pair<K, V>, HeapItem<K, V, Compare> *, PairHash<K, V>> HollowHeap<K, V, Compare>::table;
-
-/*template <typename Key, typename Val, typename Comp>
-struct HeapItem {
-  Val val;
-  typename HollowHeap<Key, Val, Comp>::Node *node;
-  typename HollowHeap<Key, Val, Comp>::DisjointSet *uf;
-  HeapItem(Val v) : val(v), node(nullptr){};
-  HeapItem() : val(), node(nullptr){};
-  HollowHeap<Key, Val, Comp> *which_heap() {
-    return uf->UFroot()->heap;
-  }
-};*/
+template <typename K, typename Compare>
+std::vector<typename HollowHeap<K, Compare>::Node> HollowHeap<K, Compare>::nodes;
 
 void heapSort(int n) {
   std::random_device rnd;
@@ -248,10 +193,10 @@ void heapSort(int n) {
   std::shuffle(a.begin(), a.end(), mt);
   for (int i = 0; i < (int)a.size(); ++i) {
     auto tmp = hh.emplace(a[i]);
-    if (i % 10000 == 0) hh.decrease_key(tmp, a[i] / 2);
+    if (i % 10000 == 0) hh.decreaseKey(tmp, a[i] / 2);
   }
   for (int i = 0; i < (int)a.size(); ++i) {
-    b[i] = hh.top_key();
+    b[i] = hh.top();
     hh.pop();
   }
   assert(std::is_sorted(b.begin(), b.end()));
