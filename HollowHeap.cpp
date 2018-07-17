@@ -200,8 +200,13 @@ class HollowHeap {
  private:
   int count_item, count_node;
   Node *root;
+  uint32_t root_;
+  std::vector<uint32_t> rankmap_;
+  static std::vector<Node> nodes;
   std::vector<Node *> rankmap;
 };
+template <typename K, typename V, typename Compare>
+std::vector<typename HollowHeap<K, V, Compare>::Node> HollowHeap<K, V, Compare>::nodes;
 //template <typename K, typename V, typename Compare>
 //std::unordered_multimap<std::pair<K, V>, HeapItem<K, V, Compare> *, PairHash<K, V>> HollowHeap<K, V, Compare>::table;
 
